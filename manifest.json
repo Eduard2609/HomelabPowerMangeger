@@ -1,0 +1,26 @@
+{
+    "name": "Remote Device Control",
+    "short_name": "Device Control",
+    "description": "Remote control panel for Raspberry Pi device",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#121212",
+    "theme_color": "#121212",
+    "icons": [
+        {
+            "src": "power-on-128.png",
+            "sizes": "128x128",
+            "type": "image/png"
+        },
+        {
+            "src": "power-on-256.png",
+            "sizes": "256x256",
+            "type": "image/png"
+        },
+        {
+            "src": "power-on-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

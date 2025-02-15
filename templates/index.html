@@ -4,155 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Device Control</title>
-    <style>
-        /* Light Theme (Default) */
-        :root {
-            --bg-color: #fff;
-            --text-color: #000;
-            --status-bg: #f0f0f0;
-            --tab-bg: #f1f1f1;
-            --tab-active-bg: #fff;
-            --border-color: #ccc;
-            --log-bg: #f8f8f8;
-        }
-
-        /* Dark Theme */
-        [data-theme="dark"] {
-            --bg-color: #121212;
-            --text-color: #fff;
-            --status-bg: #333;
-            --tab-bg: #444;
-            --tab-active-bg: #121212;
-            --border-color: #666;
-            --log-bg: #222;
-        }
-
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-        .status {
-            margin: 20px 0;
-            padding: 10px;
-            background-color: var(--status-bg);
-            border-radius: 5px;
-        }
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        button {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button.on {
-            background-color: #4CAF50;
-            color: white;
-        }
-        button.off {
-            background-color: #f44336;
-            color: white;
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        select {
-            padding: 10px;
-            font-size: 16px;
-            background-color: var(--bg-color); /* Added for dark mode */
-            color: var(--text-color);       /* Added for dark mode */
-            border: 1px solid var(--border-color); /* Added for dark mode */
-        }
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
-        .message {
-            color: #333;
-            margin-top: 10px;
-            font-style: italic;
-        }
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 20px;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            background: var(--tab-bg);
-            border: 1px solid var(--border-color);
-            border-bottom: none;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
-            color: var(--text-color);  /* Added for dark mode */
-        }
-        .tab.active {
-            background: var(--tab-active-bg);
-            border-bottom: 1px solid var(--tab-active-bg);
-            margin-bottom: -1px;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .log-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
-            padding: 10px;
-            background: var(--log-bg);
-            font-family: monospace;
-            margin-top: 20px;
-            color: var(--text-color); /* Added for dark mode */
-        }
-        .refresh-btn {
-            background-color: #2196F3;
-            color: white;
-            margin-top: 10px;
-        }
-        /* Theme Toggle Button */
-        #theme-toggle {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 8px 12px;
-            background-color: #666;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000; /* Ensure it's on top */
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <!-- Mobile app capability -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Device Control">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <!-- Include Lucide Icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
 </head>
 <body>
-    <button id="theme-toggle">Toggle Dark Mode</button>
+    <button id="theme-toggle" aria-label="Toggle theme">
+        <i data-lucide="sun" class="light-icon"></i>
+        <i data-lucide="moon" class="dark-icon"></i>
+    </button>
+
     <h1>Remote Device Control Panel</h1>
 
     <div class="tabs">
@@ -211,6 +81,9 @@
     </div>
 
     <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
         document.addEventListener('DOMContentLoaded', function() {
             const statusEl = document.getElementById('status');
             const btnOn = document.getElementById('btnOn');
@@ -226,6 +99,23 @@
             function setTheme(themeName) {
                 localStorage.setItem('theme', themeName);
                 document.documentElement.setAttribute('data-theme', themeName);
+                // Update icon visibility
+                const lightIcon = document.querySelector('.light-icon');
+                const darkIcon = document.querySelector('.dark-icon');
+                if (themeName === 'dark') {
+                    lightIcon.style.display = 'block';
+                    darkIcon.style.display = 'none';
+                } else {
+                    lightIcon.style.display = 'none';
+                    darkIcon.style.display = 'block';
+                }
+            }
+
+            // Set default theme to dark on first visit
+            if (!localStorage.getItem('theme')) {
+                setTheme('dark');
+            } else {
+                setTheme(localStorage.getItem('theme'));
             }
 
             // Function to toggle the theme
