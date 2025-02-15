@@ -1,2 +1,3 @@
-# HomelabPowerMangeger
-A app that helps you to set the active hour of your server
+sudo nano /etc/systemd/system/device-controller.service
+
+sudo systemctl start device-monitor.service

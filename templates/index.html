@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Device Control</title>
+    <style>
+        /* Light Theme (Default) */
+        :root {
+            --bg-color: #fff;
+            --text-color: #000;
+            --status-bg: #f0f0f0;
+            --tab-bg: #f1f1f1;
+            --tab-active-bg: #fff;
+            --border-color: #ccc;
+            --log-bg: #f8f8f8;
+        }
+
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #fff;
+            --status-bg: #333;
+            --tab-bg: #444;
+            --tab-active-bg: #121212;
+            --border-color: #666;
+            --log-bg: #222;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: var(--status-bg);
+            border-radius: 5px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button.on {
+            background-color: #4CAF50;
+            color: white;
+        }
+        button.off {
+            background-color: #f44336;
+            color: white;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        select {
+            padding: 10px;
+            font-size: 16px;
+            background-color: var(--bg-color); /* Added for dark mode */
+            color: var(--text-color);       /* Added for dark mode */
+            border: 1px solid var(--border-color); /* Added for dark mode */
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .message {
+            color: #333;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: var(--tab-bg);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            color: var(--text-color);  /* Added for dark mode */
+        }
+        .tab.active {
+            background: var(--tab-active-bg);
+            border-bottom: 1px solid var(--tab-active-bg);
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            background: var(--log-bg);
+            font-family: monospace;
+            margin-top: 20px;
+            color: var(--text-color); /* Added for dark mode */
+        }
+        .refresh-btn {
+            background-color: #2196F3;
+            color: white;
+            margin-top: 10px;
+        }
+        /* Theme Toggle Button */
+        #theme-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            background-color: #666;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000; /* Ensure it's on top */
+        }
+    </style>
+</head>
+<body>
+    <button id="theme-toggle">Toggle Dark Mode</button>
+    <h1>Remote Device Control Panel</h1>
+
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('control')">Control</div>
+        <div class="tab" onclick="showTab('logs')">Logs</div>
+    </div>
+
+    <div id="control-tab" class="tab-content active">
+        <div class="status" id="status">
+            Current status: Loading...
+        </div>
+
+        <div class="controls">
+            <button id="btnOn" class="on">Turn On (WoL)</button>
+            <button id="btnOff" class="off">Turn Off (SSH)</button>
+
+            <div>
+                <select id="hoursSelect">
+                    <option value="1">1 hour</option>
+                    <option value="2">2 hours</option>
+                    <option value="3">3 hours</option>
+                    <option value="4">4 hours</option>
+                    <option value="8">8 hours</option>
+                    <option value="12">12 hours</option>
+                </select>
+                <button id="btnSchedule">Turn Off After Selected Time</button>
+            </div>
+        </div>
+
+        <div class="message" id="message"></div>
+        <div class="error" id="error"></div>
+    </div>
+
+    <div id="logs-tab" class="tab-content">
+        <h2>Activity Logs</h2>
+        <button class="refresh-btn" onclick="loadActivityLogs()">Refresh Logs</button>
+        <table id="activity-logs">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Result</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Activity logs will be loaded here -->
+            </tbody>
+        </table>
+
+        <h2>System Logs</h2>
+        <button class="refresh-btn" onclick="loadSystemLogs()">Refresh Logs</button>
+        <div class="log-container" id="system-logs">
+            <!-- System logs will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const statusEl = document.getElementById('status');
+            const btnOn = document.getElementById('btnOn');
+            const btnOff = document.getElementById('btnOff');
+            const btnSchedule = document.getElementById('btnSchedule');
+            const hoursSelect = document.getElementById('hoursSelect');
+            const errorEl = document.getElementById('error');
+            const messageEl = document.getElementById('message');
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const body = document.body;
+
+            // Function to set the theme
+            function setTheme(themeName) {
+                localStorage.setItem('theme', themeName);
+                document.documentElement.setAttribute('data-theme', themeName);
+            }
+
+            // Function to toggle the theme
+            function toggleTheme() {
+                if (localStorage.getItem('theme') === 'dark') {
+                    setTheme('light');
+                } else {
+                    setTheme('dark');
+                }
+            }
+
+            // Immediately invoked function to set the theme on initial load
+            (function () {
+                if (localStorage.getItem('theme') === 'dark') {
+                    setTheme('dark');
+                    themeToggleBtn.textContent = "Toggle Light Mode"; // Update button text
+                } else {
+                    setTheme('light');
+                    themeToggleBtn.textContent = "Toggle Dark Mode"; // Update button text
+                }
+            })();
+
+            // Event listener for the theme toggle button
+            themeToggleBtn.addEventListener('click', () => {
+                toggleTheme();
+                // Update button text after toggling
+                if (localStorage.getItem('theme') === 'dark') {
+                    themeToggleBtn.textContent = "Toggle Light Mode";
+                } else {
+                    themeToggleBtn.textContent = "Toggle Dark Mode";
+                }
+            });
+
+
+            // Update status periodically
+            function updateStatus() {
+                fetch('/api/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        let statusText = `Current status: ${data.state ? 'ONLINE' : 'OFFLINE'}`;
+
+                        if (data.scheduled_off_time) {
+                            statusText += `<br>Scheduled to turn off at: ${data.scheduled_off_time}`;
+                        }
+
+                        if (data.in_restricted_hours) {
+                            statusText += '<br><strong>Note: Cannot turn on during restricted hours (2 AM - 7 AM)</strong>';
+                            btnOn.disabled = true;
+                        } else {
+                            btnOn.disabled = data.state;
+                        }
+
+                        statusEl.innerHTML = statusText;
+
+                        // Enable/disable buttons based on current state
+                        btnOn.disabled = data.state || data.in_restricted_hours;
+                        btnOff.disabled = !data.state;
+                        btnSchedule.disabled = !data.state;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        errorEl.textContent = 'Error communicating with the server';
+                    });
+            }
+
+            // Initial update
+            updateStatus();
+
+            // Update every 5 seconds
+            setInterval(updateStatus, 5000);
+
+            // Button click handlers
+            btnOn.addEventListener('click', function() {
+                messageEl.textContent = "Sending Wake-on-LAN packet...";
+                btnOn.disabled = true;
+
+                fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'turn_on' }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success && data.message) {
+                        errorEl.textContent = data.message;
+                        messageEl.textContent = "";
+                    } else if (data.success) {
+                        errorEl.textContent = '';
+                        messageEl.textContent = "Wake-on-LAN packet sent successfully!";
+                        setTimeout(() => {
+                            messageEl.textContent = "";
+                        }, 3000);
+                    } else {
+                        errorEl.textContent = 'Failed to wake up the device. Please check the configuration.';
+                        messageEl.textContent = "";
+                    }
+                    updateStatus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorEl.textContent = 'Error communicating with the server';
+                    messageEl.textContent = "";
+                    btnOn.disabled = false;
+                });
+            });
+
+            btnOff.addEventListener('click', function() {
+                messageEl.textContent = "Sending shutdown command via SSH...";
+                btnOff.disabled = true;
+
+                fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'turn_off' }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        errorEl.textContent = '';
+                        messageEl.textContent = "Shutdown command sent successfully!";
+                        setTimeout(() => {
+                            messageEl.textContent = "";
+                        }, 3000);
+                    } else {
+                        errorEl.textContent = 'Failed to shut down the device. Please check the SSH configuration.';
+                        messageEl.textContent = "";
+                    }
+                    updateStatus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorEl.textContent = 'Error communicating with the server';
+                    messageEl.textContent = "";
+                    btnOff.disabled = false;
+                });
+            });
+
+            btnSchedule.addEventListener('click', function() {
+                const hours = hoursSelect.value;
+                messageEl.textContent = `Scheduling shutdown in ${hours} hour(s)...`;
+
+                fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'schedule_off',
+                        hours: hours
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        errorEl.textContent = '';
+                        messageEl.textContent = `Device will shut down in ${hours} hour(s)`;
+                        setTimeout(() => {
+                            messageEl.textContent = "";
+                        }, 3000);
+                    } else {
+                        errorEl.textContent = 'Failed to schedule shutdown';
+                        messageEl.textContent = "";
+                    }
+                    updateStatus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorEl.textContent = 'Error communicating with the server';
+                    messageEl.textContent = "";
+                });
+            });
+
+            // Load initial logs
+            if (document.getElementById('logs-tab').classList.contains('active')) {
+                loadActivityLogs();
+                loadSystemLogs();
+            }
+        });
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            document.querySelector(`.tab:nth-child(${tabName === 'control' ? 1 : 2})`).classList.add('active');
+
+            // Load logs if logs tab is selected
+            if (tabName === 'logs') {
+                loadActivityLogs();
+                loadSystemLogs();
+            }
+        }
+
+        function loadActivityLogs() {
+            fetch('/api/logs?type=activity&limit=50')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.querySelector('#activity-logs tbody');
+                    tbody.innerHTML = '';
+
+                    if (Array.isArray(data)) {
+                        // Reverse to show newest first
+                        data.reverse().forEach(log => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${log.timestamp}</td>
+                                <td>${log.action}</td>
+                                <td>${log.result}</td>
+                                <td>${log.details || ''}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading activity logs:', error);
+                });
+        }
+
+        function loadSystemLogs() {
+            fetch('/api/logs?type=system&limit=100')
+                .then(response => response.json())
+                .then(data => {
+                    const logsContainer = document.getElementById('system-logs');
+
+                    if (Array.isArray(data)) {
+                        logsContainer.innerHTML = data.join('<br>');
+                        // Scroll to bottom
+                        logsContainer.scrollTop = logsContainer.scrollHeight;
+                    } else {
+                        logsContainer.innerHTML = 'No logs available';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading system logs:', error);
+                });
+        }
+    </script>
+</body>
