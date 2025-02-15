@@ -4,23 +4,255 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Device Control</title>
-    <link rel="stylesheet" href="styles.css">
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <!-- Mobile app capability -->
     <link rel="manifest" href="/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="Device Control">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <!-- Include Lucide Icons -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
+
+
+    <style>
+        /* Theme Toggle Styles */
+        #theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            background-color: transparent;
+            color: var(--text-color);
+            border: none;
+            cursor: pointer;
+            z-index: 1000;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        #theme-toggle:hover {
+            background-color: var(--status-bg);
+        }
+
+        #theme-toggle .light-icon {
+            display: none;
+            font-size: 1.5em; /* Adjust size as needed */
+        }
+
+        #theme-toggle .dark-icon {
+            display: inline;
+            font-size: 1.5em; /* Adjust size as needed */
+        }
+
+        [data-theme="light"] #theme-toggle .light-icon {
+            display: inline;
+        }
+
+        [data-theme="light"] #theme-toggle .dark-icon {
+            display: none;
+        }
+
+        /* CSS Variables for Theme */
+        :root {
+            --bg-color: #121212;
+            --text-color: #fff;
+            --status-bg: #333;
+            --tab-bg: #444;
+            --tab-active-bg: #121212;
+            --border-color: #666;
+            --log-bg: #222;
+        }
+
+        [data-theme="light"] {
+            --bg-color: #fff;
+            --text-color: #000;
+            --status-bg: #f0f0f0;
+            --tab-bg: #f1f1f1;
+            --tab-active-bg: #fff;
+            --border-color: #ccc;
+            --log-bg: #f8f8f8;
+        }
+
+        /* Other Styles (From your original CSS file) */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            button, select {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .tab {
+                padding: 8px 12px;
+                font-size: 14px;
+            }
+
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 6px;
+            }
+        }
+
+        /* Components */
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: var(--status-bg);
+            border-radius: 8px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.on {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        button.off {
+            background-color: #f44336;
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        select {
+            padding: 12px;
+            font-size: 16px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .error {
+            color: #ff4444;
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            background-color: rgba(255, 68, 68, 0.1);
+        }
+
+        .message {
+            color: var(--text-color);
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            gap: 4px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            background: var(--tab-bg);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            color: var(--text-color);
+            transition: background-color 0.2s;
+        }
+
+        .tab.active {
+            background: var(--tab-active-bg);
+            border-bottom: 1px solid var(--tab-active-bg);
+            margin-bottom: -1px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Tables and Logs */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--status-bg);
+        }
+
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            background: var(--log-bg);
+            font-family: monospace;
+            margin-top: 20px;
+            color: var(--text-color);
+            border-radius: 8px;
+        }
+
+        .refresh-btn {
+            background-color: #2196F3;
+            color: white;
+            margin-top: 12px;
+        }
+    </style>
 </head>
 <body>
     <button id="theme-toggle" aria-label="Toggle theme">
-        <i data-lucide="sun" class="light-icon"></i>
-        <i data-lucide="moon" class="dark-icon"></i>
+        <span class="light-icon">☀️</span>
+        <span class="dark-icon">🌙</span>
     </button>
 
     <h1>Remote Device Control Panel</h1>
@@ -81,9 +313,6 @@
     </div>
 
     <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-
         document.addEventListener('DOMContentLoaded', function() {
             const statusEl = document.getElementById('status');
             const btnOn = document.getElementById('btnOn');
@@ -94,30 +323,36 @@
             const messageEl = document.getElementById('message');
             const themeToggleBtn = document.getElementById('theme-toggle');
             const body = document.body;
-
-            // Function to set the theme
+    
+            // Function to set the theme (moved inside DOMContentLoaded)
             function setTheme(themeName) {
                 localStorage.setItem('theme', themeName);
                 document.documentElement.setAttribute('data-theme', themeName);
-                // Update icon visibility
+    
+                // Update icon visibility using emoji span elements
                 const lightIcon = document.querySelector('.light-icon');
                 const darkIcon = document.querySelector('.dark-icon');
-                if (themeName === 'dark') {
-                    lightIcon.style.display = 'block';
-                    darkIcon.style.display = 'none';
+    
+                if (lightIcon && darkIcon) { // Important null check
+                    if (themeName === 'dark') {
+                        lightIcon.style.display = 'inline';
+                        darkIcon.style.display = 'none';
+                    } else {
+                        lightIcon.style.display = 'none';
+                        darkIcon.style.display = 'inline';
+                    }
                 } else {
-                    lightIcon.style.display = 'none';
-                    darkIcon.style.display = 'block';
+                    console.warn("lightIcon or darkIcon not found in the DOM.");
                 }
             }
-
-            // Set default theme to dark on first visit
+    
+            // Set default theme on first visit, now inside DOMContentLoaded
             if (!localStorage.getItem('theme')) {
                 setTheme('dark');
             } else {
                 setTheme(localStorage.getItem('theme'));
             }
-
+    
             // Function to toggle the theme
             function toggleTheme() {
                 if (localStorage.getItem('theme') === 'dark') {
@@ -126,50 +361,48 @@
                     setTheme('dark');
                 }
             }
-
-            // Immediately invoked function to set the theme on initial load
+    
+            // Immediately invoked function to set the theme on initial load, now inside DOMContentLoaded
             (function () {
                 if (localStorage.getItem('theme') === 'dark') {
                     setTheme('dark');
-                    themeToggleBtn.textContent = "Toggle Light Mode"; // Update button text
+                    themeToggleBtn.textContent = "☀️";
                 } else {
                     setTheme('light');
-                    themeToggleBtn.textContent = "Toggle Dark Mode"; // Update button text
+                    themeToggleBtn.textContent = "🌙";
                 }
             })();
-
+    
             // Event listener for the theme toggle button
             themeToggleBtn.addEventListener('click', () => {
                 toggleTheme();
-                // Update button text after toggling
                 if (localStorage.getItem('theme') === 'dark') {
-                    themeToggleBtn.textContent = "Toggle Light Mode";
+                    themeToggleBtn.textContent = "☀️";
                 } else {
-                    themeToggleBtn.textContent = "Toggle Dark Mode";
+                    themeToggleBtn.textContent = "🌙";
                 }
             });
-
-
+    
             // Update status periodically
             function updateStatus() {
                 fetch('/api/status')
                     .then(response => response.json())
                     .then(data => {
                         let statusText = `Current status: ${data.state ? 'ONLINE' : 'OFFLINE'}`;
-
+    
                         if (data.scheduled_off_time) {
                             statusText += `<br>Scheduled to turn off at: ${data.scheduled_off_time}`;
                         }
-
+    
                         if (data.in_restricted_hours) {
                             statusText += '<br><strong>Note: Cannot turn on during restricted hours (2 AM - 7 AM)</strong>';
                             btnOn.disabled = true;
                         } else {
                             btnOn.disabled = data.state;
                         }
-
+    
                         statusEl.innerHTML = statusText;
-
+    
                         // Enable/disable buttons based on current state
                         btnOn.disabled = data.state || data.in_restricted_hours;
                         btnOff.disabled = !data.state;
@@ -180,18 +413,18 @@
                         errorEl.textContent = 'Error communicating with the server';
                     });
             }
-
+    
             // Initial update
             updateStatus();
-
+    
             // Update every 5 seconds
             setInterval(updateStatus, 5000);
-
+    
             // Button click handlers
             btnOn.addEventListener('click', function() {
                 messageEl.textContent = "Sending Wake-on-LAN packet...";
                 btnOn.disabled = true;
-
+    
                 fetch('/api/control', {
                     method: 'POST',
                     headers: {
@@ -223,11 +456,11 @@
                     btnOn.disabled = false;
                 });
             });
-
+    
             btnOff.addEventListener('click', function() {
                 messageEl.textContent = "Sending shutdown command via SSH...";
                 btnOff.disabled = true;
-
+    
                 fetch('/api/control', {
                     method: 'POST',
                     headers: {
@@ -256,11 +489,11 @@
                     btnOff.disabled = false;
                 });
             });
-
+    
             btnSchedule.addEventListener('click', function() {
                 const hours = hoursSelect.value;
                 messageEl.textContent = `Scheduling shutdown in ${hours} hour(s)...`;
-
+    
                 fetch('/api/control', {
                     method: 'POST',
                     headers: {
@@ -291,42 +524,42 @@
                     messageEl.textContent = "";
                 });
             });
-
+    
             // Load initial logs
             if (document.getElementById('logs-tab').classList.contains('active')) {
                 loadActivityLogs();
                 loadSystemLogs();
             }
         });
-
+    
         function showTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
-
+    
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
-
+    
             // Show selected tab
             document.getElementById(`${tabName}-tab`).classList.add('active');
             document.querySelector(`.tab:nth-child(${tabName === 'control' ? 1 : 2})`).classList.add('active');
-
+    
             // Load logs if logs tab is selected
             if (tabName === 'logs') {
                 loadActivityLogs();
                 loadSystemLogs();
             }
         }
-
+    
         function loadActivityLogs() {
             fetch('/api/logs?type=activity&limit=50')
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.querySelector('#activity-logs tbody');
                     tbody.innerHTML = '';
-
+    
                     if (Array.isArray(data)) {
                         // Reverse to show newest first
                         data.reverse().forEach(log => {
@@ -345,13 +578,13 @@
                     console.error('Error loading activity logs:', error);
                 });
         }
-
+    
         function loadSystemLogs() {
             fetch('/api/logs?type=system&limit=100')
                 .then(response => response.json())
                 .then(data => {
                     const logsContainer = document.getElementById('system-logs');
-
+    
                     if (Array.isArray(data)) {
                         logsContainer.innerHTML = data.join('<br>');
                         // Scroll to bottom
@@ -366,3 +599,4 @@
         }
     </script>
 </body>
+</html>
