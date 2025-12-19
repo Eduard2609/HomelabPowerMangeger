@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import subprocess
+import socket
 import paramiko
 import logging
 from logging.handlers import RotatingFileHandler
@@ -94,6 +95,50 @@ def save_config(config):
 config = load_config()
 off_timer = None
 
+def ensure_config_defaults():
+    # Add missing keys to existing configs without overwriting user values
+    if 'pc_device' not in config:
+        config['pc_device'] = {
+            'mac_address': '34:5A:60:1C:CD:9F',
+            'ip_address': '172.26.1.26'
+        }
+        save_config(config)
+
+ensure_config_defaults()
+
+def _ping(ip):
+    try:
+        if os.name == 'nt':
+            return subprocess.run(['ping', '-n', '1', '-w', '1000', ip],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL).returncode == 0
+        else:
+            return subprocess.run(['ping', '-c', '1', '-W', '1', ip],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL).returncode == 0
+    except Exception:
+        return False
+
+def _broadcast_for_ip(ip):
+    try:
+        parts = ip.split('.')
+        if len(parts) == 4:
+            parts[3] = '255'
+            return '.'.join(parts)
+    except Exception:
+        pass
+    return '255.255.255.255'
+
+def send_wol(mac_address, broadcast_ip='255.255.255.255', port=9):
+    mac_clean = mac_address.replace(':', '').replace('-', '').lower()
+    if len(mac_clean) != 12:
+        raise ValueError('Invalid MAC address')
+    data = b'FF' * 6 + (bytes.fromhex(mac_clean) * 16)
+    packet = bytes.fromhex(data.decode())
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.sendto(packet, (broadcast_ip, port))
+
 def check_restricted_hours():
     now = datetime.datetime.now()
     start = config['restricted_hours']['start']
@@ -106,10 +151,7 @@ def check_device_status():
     """Check if the device is reachable via ping"""
     try:
         ip = config['target_device']['ip_address']
-        response = subprocess.run(['ping', '-c', '1', '-W', '1', ip],
-                                 stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
-        is_online = response.returncode == 0
+        is_online = _ping(ip)
 
         # Log state changes
         current_state = config.get('state', False)
@@ -122,14 +164,21 @@ def check_device_status():
         system_logger.error(f"Error checking device status: {str(e)}")
         return False
 
+def check_device_status_ip(ip):
+    try:
+        return _ping(ip)
+    except Exception as e:
+        system_logger.error(f"Error checking device status for {ip}: {str(e)}")
+        return False
+
 def wake_on_lan():
     """Send Wake-on-LAN magic packet"""
     try:
         mac = config['target_device']['mac_address']
-        system_logger.info(f"Sending WoL packet to {mac}")
-        subprocess.run(['wakeonlan', mac],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL)
+        ip = config['target_device']['ip_address']
+        bcast = _broadcast_for_ip(ip)
+        system_logger.info(f"Sending WoL packet to {mac} via {bcast}")
+        send_wol(mac, bcast)
 
         # Give the device some time to boot
         time.sleep(2)
@@ -156,6 +205,31 @@ def wake_on_lan():
     except Exception as e:
         system_logger.error(f"Error sending WoL packet: {str(e)}")
         log_activity('wake_on_lan', 'error', str(e))
+        return False
+
+def wake_pc():
+    """Wake the PC device using MAC/IP from config['pc_device']"""
+    try:
+        mac = config['pc_device']['mac_address']
+        ip = config['pc_device']['ip_address']
+        bcast = _broadcast_for_ip(ip)
+        system_logger.info(f"Sending PC WoL packet to {mac} via {bcast}")
+        send_wol(mac, bcast)
+        time.sleep(2)
+        attempts = 0
+        max_attempts = 5
+        while attempts < max_attempts:
+            is_online = check_device_status_ip(ip)
+            if is_online:
+                log_activity('pc_wake_on_lan', 'success', f"PC at {ip} is online after {attempts+1} attempts")
+                return True
+            time.sleep(2)
+            attempts += 1
+        log_activity('pc_wake_on_lan', 'failed', f"PC at {ip} failed to respond after {max_attempts} attempts")
+        return False
+    except Exception as e:
+        system_logger.error(f"Error sending PC WoL packet: {str(e)}")
+        log_activity('pc_wake_on_lan', 'error', str(e))
         return False
 
 def shutdown_device():
@@ -313,6 +387,23 @@ def control():
     system_logger.warning(f"Invalid action '{action}' requested from {client_ip}")
     log_activity('control', 'invalid', f"Invalid action: {action}")
     return jsonify({'success': False, 'message': 'Invalid action'})
+
+@app.route('/api/pc/wake', methods=['POST'])
+def pc_wake():
+    client_ip = request.remote_addr
+    system_logger.info(f"PC wake requested from {client_ip}")
+    success = wake_pc()
+    return jsonify({'success': success})
+
+@app.route('/api/pc/status', methods=['GET'])
+def pc_status():
+    try:
+        ip = config['pc_device']['ip_address']
+        online = check_device_status_ip(ip)
+        return jsonify({'online': online})
+    except Exception as e:
+        system_logger.error(f"PC status error: {str(e)}")
+        return jsonify({'online': False, 'error': str(e)}), 500
 
 @app.route('/api/logs', methods=['GET'])
 def get_logs():

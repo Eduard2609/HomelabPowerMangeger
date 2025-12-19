@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+logs/
+logs/activity.csv
+logs/system.log
+config.json
+.env
+uv.lock
+Thumbs.db
+.DS_Store
+*.egg-info/
+homelab_power_manager.egg-info/

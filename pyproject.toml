@@ -1,0 +1,16 @@
+[project]
+name = "homelab-power-manager"
+version = "0.1.0"
+description = "Remote device control panel (Flask) with WoL and SSH"
+requires-python = ">=3.9"
+dependencies = [
+    "flask",
+    "paramiko",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["app"]

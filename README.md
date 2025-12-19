@@ -1,13 +1,24 @@
 # Homelab Power Manager
 
-## Service Setup
+## Setup with UV
 
-Create the systemd service:
-```bash
-sudo nano /etc/systemd/system/device-controller.service
+Install UV (Windows PowerShell):
+```powershell
+irm https://astral.sh/uv/install.ps1 | iex
 ```
 
-Start the monitoring service:
-```bash
-sudo systemctl start device-monitor.service
+Create virtual environment and install dependencies:
+```powershell
+uv venv
+uv sync
+```
+
+Run the app:
+```powershell
+uv run python app.py
+```
+
+Environment variables:
+```powershell
+$env:SSH_KEY_PASSPHRASE="your-passphrase"
 ```

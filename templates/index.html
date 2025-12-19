@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -258,11 +259,12 @@
     <h1>Remote Device Control Panel</h1>
 
     <div class="tabs">
-        <div class="tab active" onclick="showTab('control')">Control</div>
-        <div class="tab" onclick="showTab('logs')">Logs</div>
+        <div class="tab active" data-tab="server" onclick="showTab('server')">Server</div>
+        <div class="tab" data-tab="pc" onclick="showTab('pc')">PC</div>
+        <div class="tab" data-tab="logs" onclick="showTab('logs')">Logs</div>
     </div>
 
-    <div id="control-tab" class="tab-content active">
+    <div id="server-tab" class="tab-content active">
         <div class="status" id="status">
             Current status: Loading...
         </div>
@@ -272,7 +274,7 @@
             <button id="btnOff" class="off">Turn Off (SSH)</button>
 
             <div>
-                <select id="hoursSelect">
+                <select id="hoursSelect" aria-label="Select shutdown delay in hours">
                     <option value="1">1 hour</option>
                     <option value="2">2 hours</option>
                     <option value="3">3 hours</option>
@@ -286,6 +288,18 @@
 
         <div class="message" id="message"></div>
         <div class="error" id="error"></div>
+    </div>
+
+    <div id="pc-tab" class="tab-content">
+        <div class="status" id="pcStatus">
+            PC: 172.26.1.26 (34:5A:60:1C:CD:9F)<br>
+            Current status: Loading...
+        </div>
+        <div class="controls">
+            <button id="btnPcOn" class="on">Turn On PC (WoL)</button>
+        </div>
+        <div class="message" id="pcMessage"></div>
+        <div class="error" id="pcError"></div>
     </div>
 
     <div id="logs-tab" class="tab-content">
@@ -323,6 +337,10 @@
             const messageEl = document.getElementById('message');
             const themeToggleBtn = document.getElementById('theme-toggle');
             const body = document.body;
+            const btnPcOn = document.getElementById('btnPcOn');
+            const pcMessageEl = document.getElementById('pcMessage');
+            const pcErrorEl = document.getElementById('pcError');
+            const pcStatusEl = document.getElementById('pcStatus');
     
             // Function to set the theme (moved inside DOMContentLoaded)
             function setTheme(themeName) {
@@ -416,9 +434,11 @@
     
             // Initial update
             updateStatus();
+            updatePcStatus();
     
             // Update every 5 seconds
             setInterval(updateStatus, 5000);
+            setInterval(updatePcStatus, 5000);
     
             // Button click handlers
             btnOn.addEventListener('click', function() {
@@ -456,7 +476,51 @@
                     btnOn.disabled = false;
                 });
             });
-    
+
+            if (btnPcOn) {
+                btnPcOn.addEventListener('click', function() {
+                    pcMessageEl.textContent = "Sending Wake-on-LAN packet to PC...";
+                    btnPcOn.disabled = true;
+                    fetch('/api/pc/wake', {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            pcErrorEl.textContent = '';
+                            pcMessageEl.textContent = "PC Wake-on-LAN packet sent successfully!";
+                            setTimeout(() => { pcMessageEl.textContent = ""; }, 3000);
+                            updatePcStatus();
+                        } else {
+                            pcErrorEl.textContent = 'Failed to wake the PC.';
+                            pcMessageEl.textContent = "";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        pcErrorEl.textContent = 'Error communicating with the server';
+                        pcMessageEl.textContent = "";
+                    })
+                    .finally(() => {
+                        btnPcOn.disabled = false;
+                    });
+                });
+            }
+
+            function updatePcStatus() {
+                fetch('/api/pc/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!pcStatusEl) return;
+                        const onlineText = data.online ? 'ONLINE' : 'OFFLINE';
+                        pcStatusEl.innerHTML = `PC: 172.26.1.26 (34:5A:60:1C:CD:9F)<br>Current status: ${onlineText}`;
+                    })
+                    .catch(() => {
+                        if (!pcStatusEl) return;
+                        pcStatusEl.innerHTML = `PC: 172.26.1.26 (34:5A:60:1C:CD:9F)<br>Current status: Unknown`;
+                    });
+            }
+
             btnOff.addEventListener('click', function() {
                 messageEl.textContent = "Sending shutdown command via SSH...";
                 btnOff.disabled = true;
@@ -544,7 +608,8 @@
     
             // Show selected tab
             document.getElementById(`${tabName}-tab`).classList.add('active');
-            document.querySelector(`.tab:nth-child(${tabName === 'control' ? 1 : 2})`).classList.add('active');
+            const header = document.querySelector(`.tab[data-tab="${tabName}"]`);
+            if (header) header.classList.add('active');
     
             // Load logs if logs tab is selected
             if (tabName === 'logs') {
