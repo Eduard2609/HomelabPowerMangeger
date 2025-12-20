@@ -269,7 +269,7 @@ def shutdown_device():
 
             # Send shutdown command
             system_logger.info("Executing shutdown command")
-            ssh.exec_command('sudo suspend')
+            ssh.exec_command('sudo systemctl suspend')
             ssh.close()
             system_logger.info("Shutdown command executed successfully")
 
