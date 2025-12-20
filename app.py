@@ -133,11 +133,16 @@ def send_wol(mac_address, broadcast_ip='255.255.255.255', port=9):
     mac_clean = mac_address.replace(':', '').replace('-', '').lower()
     if len(mac_clean) != 12:
         raise ValueError('Invalid MAC address')
-    data = b'FF' * 6 + (bytes.fromhex(mac_clean) * 16)
-    packet = bytes.fromhex(data.decode())
+    mac_bytes = bytes.fromhex(mac_clean)
+    packet = b'\xff' * 6 + (mac_bytes * 16)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.sendto(packet, (broadcast_ip, port))
+        targets = {broadcast_ip, '255.255.255.255'}
+        for target in targets:
+            try:
+                s.sendto(packet, (target, port))
+            except Exception as e:
+                system_logger.warning(f"WoL send error to {target}:{port}: {str(e)}")
 
 def check_restricted_hours():
     now = datetime.datetime.now()
