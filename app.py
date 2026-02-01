@@ -95,7 +95,7 @@ def load_config():
 def save_config(config):
     try:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=4)
     except Exception as e:
         system_logger.error(f"Failed to save configuration: {str(e)}")
 
