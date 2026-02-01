@@ -18,8 +18,8 @@
         "ip_address": "172.26.1.26"
     },
     "plex": {
-        "ip_address": "172.26.1.31",
-        "port": 32400,
-        "token": "ezhb-HfyKTxzx3xyVKJb"
+        "tautulli_ip": "172.26.1.31",
+        "tautulli_port": 7979,
+        "tautulli_apikey": "026a5ea6d4d6478987510d964e7c0349"
     }
 }

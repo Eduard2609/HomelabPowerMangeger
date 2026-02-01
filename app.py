@@ -11,7 +11,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import csv
 import urllib.request
-import xml.etree.ElementTree as ET
 
 app = Flask(__name__)
 
@@ -70,9 +69,9 @@ default_config = {
         'ssh_key_passphrase': os.environ.get('SSH_KEY_PASSPHRASE', '')  # Get from environment, default to empty string
     },
     'plex': {
-        'ip_address': '',       # Your Plex server IP (e.g. 172.26.1.31)
-        'port': 32400,          # Default Plex port
-        'token': ''             # Your Plex token (see README for how to get it)
+        'tautulli_ip': '',       # Your Tautulli server IP
+        'tautulli_port': 7979,   # Your Tautulli port
+        'tautulli_apikey': ''    # Your Tautulli API key
     }
 }
 
@@ -109,11 +108,11 @@ def ensure_config_defaults():
             'mac_address': '34:5A:60:1C:CD:9F',
             'ip_address': '172.26.1.26'
         }
-    if 'plex' not in config:
+    if 'plex' not in config or 'tautulli_ip' not in config.get('plex', {}):
         config['plex'] = {
-            'ip_address': '',
-            'port': 32400,
-            'token': ''
+            'tautulli_ip': '',
+            'tautulli_port': 7979,
+            'tautulli_apikey': ''
         }
     save_config(config)
 
@@ -131,54 +130,42 @@ _plex_cache = {
 }
 
 def _fetch_plex_streams():
-    """Query Plex /sessions endpoint and return a list of active streams."""
+    """Query Tautulli get_activity endpoint and return a list of active streams."""
     plex_cfg = config.get('plex', {})
-    ip = plex_cfg.get('ip_address', '').strip()
-    token = plex_cfg.get('token', '').strip()
-    port = plex_cfg.get('port', 32400)
+    ip = plex_cfg.get('tautulli_ip', '').strip()
+    port = plex_cfg.get('tautulli_port', 7979)
+    apikey = plex_cfg.get('tautulli_apikey', '').strip()
 
-    if not ip or not token:
+    if not ip or not apikey:
         return []  # Not configured — silently return empty
 
-    url = f'http://{ip}:{port}/sessions'
-    req = urllib.request.Request(url, headers={
-        'X-Plex-Token': token
-    })
+    url = f'http://{ip}:{port}/api/v2?cmd=get_activity&apikey={apikey}'
 
     try:
+        req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=4) as resp:
-            xml_data = resp.read()
+            data = json.loads(resp.read().decode())
     except Exception as e:
-        system_logger.warning(f"Plex API request failed: {e}")
+        system_logger.warning(f"Tautulli API request failed: {e}")
         return None  # None signals "use stale cache"
 
-    try:
-        root = ET.fromstring(xml_data)
-    except ET.ParseError as e:
-        system_logger.error(f"Plex XML parse error: {e}")
+    if data.get('response', {}).get('result') != 'success':
+        system_logger.warning(f"Tautulli returned non-success: {data}")
         return None
 
+    sessions = data.get('response', {}).get('data', {}).get('sessions', [])
     streams = []
-    for video in root.findall('.//Video'):
-        # Each <Video> element is one active stream
-        title = video.get('title', 'Unknown')
-        media_type = video.get('type', 'unknown')  # movie | episode | etc.
-        user = video.get('User', '')
+    for s in sessions:
+        media_type = s.get('media_type', 'unknown')
+        title = s.get('title', 'Unknown')
+        grandparent_title = s.get('grandparent_title', '')
+        user = s.get('friendly_name', '')
+        resolution = s.get('video_full_resolution', '')
+        state = s.get('state', '')
 
-        # Grandparent title for episodes (the show name)
-        grandparent = video.get('grandparentTitle', '')
-
-        # Quality comes from the first <Stream> with streamType="1" (video stream)
-        quality = ''
-        for stream in video.findall('.//Stream'):
-            if stream.get('streamType') == '1':
-                height = stream.get('height', '')
-                quality = f"{height}p" if height else ''
-                break
-
-        # Build a human-readable display title
-        if media_type == 'episode' and grandparent:
-            display_title = f"{grandparent} — {title}"
+        # For episodes: "Show — Episode Title"
+        if media_type == 'episode' and grandparent_title:
+            display_title = f"{grandparent_title} \u2014 {title}"
         else:
             display_title = title
 
@@ -186,7 +173,8 @@ def _fetch_plex_streams():
             'title': display_title,
             'type': media_type,
             'user': user,
-            'quality': quality
+            'quality': resolution,
+            'state': state
         })
 
     return streams
