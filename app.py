@@ -103,18 +103,22 @@ off_timer = None
 
 def ensure_config_defaults():
     # Add missing keys to existing configs without overwriting user values
+    changed = False
     if 'pc_device' not in config:
         config['pc_device'] = {
             'mac_address': '34:5A:60:1C:CD:9F',
             'ip_address': '172.26.1.26'
         }
+        changed = True
     if 'plex' not in config or 'tautulli_ip' not in config.get('plex', {}):
         config['plex'] = {
             'tautulli_ip': '',
             'tautulli_port': 7979,
             'tautulli_apikey': ''
         }
-    save_config(config)
+        changed = True
+    if changed:
+        save_config(config)
 
 ensure_config_defaults()
 
