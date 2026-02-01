@@ -10,6 +10,8 @@ import paramiko
 import logging
 from logging.handlers import RotatingFileHandler
 import csv
+import urllib.request
+import xml.etree.ElementTree as ET
 
 app = Flask(__name__)
 
@@ -66,6 +68,11 @@ default_config = {
         'ssh_username': 'eduard',
         'ssh_key_path': '/home/eduard/.ssh/id_ed25519', # Store the path to the key here
         'ssh_key_passphrase': os.environ.get('SSH_KEY_PASSPHRASE', '')  # Get from environment, default to empty string
+    },
+    'plex': {
+        'ip_address': '',       # Your Plex server IP (e.g. 172.26.1.31)
+        'port': 32400,          # Default Plex port
+        'token': ''             # Your Plex token (see README for how to get it)
     }
 }
 
@@ -102,9 +109,100 @@ def ensure_config_defaults():
             'mac_address': '34:5A:60:1C:CD:9F',
             'ip_address': '172.26.1.26'
         }
-        save_config(config)
+    if 'plex' not in config:
+        config['plex'] = {
+            'ip_address': '',
+            'port': 32400,
+            'token': ''
+        }
+    save_config(config)
 
 ensure_config_defaults()
+
+# ---------------------------------------------------------------------------
+# Plex stream cache — avoids hitting the Plex API on every 5-second poll.
+# Cached for PLEX_CACHE_TTL seconds; stale on error so the UI keeps showing
+# the last known state rather than flashing empty.
+# ---------------------------------------------------------------------------
+PLEX_CACHE_TTL = 10  # seconds
+_plex_cache = {
+    'streams': [],
+    'fetched_at': 0
+}
+
+def _fetch_plex_streams():
+    """Query Plex /sessions endpoint and return a list of active streams."""
+    plex_cfg = config.get('plex', {})
+    ip = plex_cfg.get('ip_address', '').strip()
+    token = plex_cfg.get('token', '').strip()
+    port = plex_cfg.get('port', 32400)
+
+    if not ip or not token:
+        return []  # Not configured — silently return empty
+
+    url = f'http://{ip}:{port}/sessions'
+    req = urllib.request.Request(url, headers={
+        'X-Plex-Token': token
+    })
+
+    try:
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            xml_data = resp.read()
+    except Exception as e:
+        system_logger.warning(f"Plex API request failed: {e}")
+        return None  # None signals "use stale cache"
+
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError as e:
+        system_logger.error(f"Plex XML parse error: {e}")
+        return None
+
+    streams = []
+    for video in root.findall('.//Video'):
+        # Each <Video> element is one active stream
+        title = video.get('title', 'Unknown')
+        media_type = video.get('type', 'unknown')  # movie | episode | etc.
+        user = video.get('User', '')
+
+        # Grandparent title for episodes (the show name)
+        grandparent = video.get('grandparentTitle', '')
+
+        # Quality comes from the first <Stream> with streamType="1" (video stream)
+        quality = ''
+        for stream in video.findall('.//Stream'):
+            if stream.get('streamType') == '1':
+                height = stream.get('height', '')
+                quality = f"{height}p" if height else ''
+                break
+
+        # Build a human-readable display title
+        if media_type == 'episode' and grandparent:
+            display_title = f"{grandparent} — {title}"
+        else:
+            display_title = title
+
+        streams.append({
+            'title': display_title,
+            'type': media_type,
+            'user': user,
+            'quality': quality
+        })
+
+    return streams
+
+def get_plex_streams():
+    """Return cached streams, refreshing the cache when TTL has expired."""
+    global _plex_cache
+    now = time.time()
+
+    if now - _plex_cache['fetched_at'] >= PLEX_CACHE_TTL:
+        result = _fetch_plex_streams()
+        if result is not None:  # None means fetch failed — keep stale data
+            _plex_cache['streams'] = result
+        _plex_cache['fetched_at'] = now
+
+    return _plex_cache['streams']
 
 def _ping(ip):
     try:
@@ -409,6 +507,11 @@ def pc_status():
     except Exception as e:
         system_logger.error(f"PC status error: {str(e)}")
         return jsonify({'online': False, 'error': str(e)}), 500
+
+@app.route('/api/plex/streams', methods=['GET'])
+def plex_streams():
+    streams = get_plex_streams()
+    return jsonify(streams)
 
 @app.route('/api/logs', methods=['GET'])
 def get_logs():

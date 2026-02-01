@@ -248,6 +248,58 @@
             color: white;
             margin-top: 12px;
         }
+
+        /* Plex streams */
+        .plex-section {
+            margin-top: 24px;
+        }
+
+        .plex-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            color: var(--text-color);
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .plex-streams-empty {
+            display: none;
+        }
+
+        .plex-stream-card {
+            background-color: var(--status-bg);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plex-stream-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .plex-stream-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .plex-stream-title {
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .plex-stream-meta {
+            font-size: 12px;
+            opacity: 0.55;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -288,6 +340,12 @@
 
         <div class="message" id="message"></div>
         <div class="error" id="error"></div>
+
+        <!-- Plex active streams (only visible when there are streams) -->
+        <div class="plex-section" id="plexSection">
+            <h3>&#9654; Plex &mdash; Active Streams</h3>
+            <div id="plexStreams"></div>
+        </div>
     </div>
 
     <div id="pc-tab" class="tab-content">
@@ -432,13 +490,47 @@
                     });
             }
     
+            // Plex streams rendering
+            function updatePlexStreams() {
+                fetch('/api/plex/streams')
+                    .then(response => response.json())
+                    .then(streams => {
+                        const section = document.getElementById('plexSection');
+                        const container = document.getElementById('plexStreams');
+
+                        if (!Array.isArray(streams) || streams.length === 0) {
+                            section.style.display = 'none';
+                            return;
+                        }
+
+                        section.style.display = 'block';
+                        container.innerHTML = streams.map(s => {
+                            const icon = s.type === 'movie' ? '🎬' : '📺';
+                            const meta = [s.user, s.quality].filter(Boolean).join(' · ');
+                            return `<div class="plex-stream-card">
+                                <span class="plex-stream-icon">${icon}</span>
+                                <div class="plex-stream-info">
+                                    <div class="plex-stream-title">${s.title}</div>
+                                    ${meta ? '<div class="plex-stream-meta">' + meta + '</div>' : ''}
+                                </div>
+                            </div>`;
+                        }).join('');
+                    })
+                    .catch(() => {
+                        // On error, just hide — don't flash anything
+                        document.getElementById('plexSection').style.display = 'none';
+                    });
+            }
+
             // Initial update
             updateStatus();
             updatePcStatus();
-    
+            updatePlexStreams();
+
             // Update every 5 seconds
             setInterval(updateStatus, 5000);
             setInterval(updatePcStatus, 5000);
+            setInterval(updatePlexStreams, 5000);
     
             // Button click handlers
             btnOn.addEventListener('click', function() {

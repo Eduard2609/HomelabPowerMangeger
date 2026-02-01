@@ -1,24 +1,149 @@
 # Homelab Power Manager
 
-## Setup with UV
+A lightweight Flask web app that lets you remotely wake up, shut down, and
+schedule power events for machines on your local network.  Designed to run on a
+Raspberry Pi and be used as an iPhone PWA (Progressive Web App).
 
-Install UV (Windows PowerShell):
+## Features
+
+- **Wake-on-LAN** — sends a magic packet to power on any WoL-capable device
+- **SSH shutdown** — suspends the target server over SSH using an Ed25519 key
+- **Scheduled shutdown** — pick a delay (1–12 h) and the server suspends
+  automatically
+- **PC wake** — a separate one-tap button to wake a second device (e.g. your
+  desktop)
+- **Plex stream monitor** — shows all active Plex streams directly on the
+  server tab (title, user, resolution).  The section only appears when
+  something is actually playing
+- **Restricted hours** — prevents wake-ups between 2 AM and 7 AM
+- **Activity & system logs** — everything is logged to CSV / rotating log files
+- **Dark / light theme** — persisted per-browser via localStorage
+- **PWA-ready** — add to your iPhone home screen for a native-app feel
+
+---
+
+## Quick Start
+
+### 1. Install dependencies
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
 ```powershell
+# Install uv (Windows PowerShell, run once)
 irm https://astral.sh/uv/install.ps1 | iex
 ```
 
-Create virtual environment and install dependencies:
-```powershell
+```bash
+# Clone the repo, then:
 uv venv
 uv sync
 ```
 
-Run the app:
+### 2. Configure
+
+Copy or edit `config.json` (it is created automatically on first run with the
+defaults from `app.py`).  The keys you need to fill in:
+
+| Key | What to put |
+|---|---|
+| `target_device.mac_address` | MAC address of the server you want to wake |
+| `target_device.ip_address` | LAN IP of that server |
+| `target_device.ssh_username` | Your SSH user on the server |
+| `target_device.ssh_key_path` | Absolute path to your Ed25519 private key *on the Pi* |
+| `pc_device.mac_address` | MAC of your secondary device (PC) |
+| `pc_device.ip_address` | LAN IP of your secondary device |
+| `plex.ip_address` | LAN IP of your Plex Media Server |
+| `plex.token` | Your Plex token (see [Getting a Plex token](#getting-a-plex-token)) |
+
+> **SSH passphrase** — if your key is passphrase-protected, set the environment
+> variable before starting the app:
+> ```powershell
+> $env:SSH_KEY_PASSPHRASE = "your-passphrase"
+> ```
+
+### 3. Run
+
 ```powershell
 uv run python app.py
 ```
 
-Environment variables:
-```powershell
-$env:SSH_KEY_PASSPHRASE="your-passphrase"
+The server starts on **port 5000**.  Open `http://<pi-ip>:5000` in any browser.
+
+---
+
+## Plex Integration
+
+### How it works
+
+The app polls your Plex server's `/sessions` endpoint every 10 seconds
+(server-side cache) to fetch currently active streams.  No extra Python
+packages are needed — it uses only the standard library (`urllib`, `xml`).
+
+When streams are active you'll see cards on the **Server** tab showing:
+
+- 🎬 or 📺 icon depending on whether it's a movie or TV episode
+- The title (for episodes: *Show Name — Episode Title*)
+- The streaming user and resolution (e.g. *eduardo · 1080p*)
+
+If nothing is playing, or if Plex isn't configured, the section is hidden
+entirely.
+
+### Getting a Plex token
+
+1. Sign in to [plex.tv](https://www.plex.tv/) in a browser.
+2. Open the browser's developer tools → **Network** tab.
+3. Navigate to any page inside your Plex account (e.g. your dashboard).
+4. Look for any request to `api.plex.tv` and inspect the headers.
+5. Copy the value of the **X-Plex-Token** header — that's your token.
+
+Paste it into `config.json` under `plex.token`.
+
+---
+
+## Deploying on a Raspberry Pi
+
+1. Transfer the project folder to the Pi (git clone or SCP).
+2. Run the quick-start steps above *on the Pi*.
+3. Copy `device-controller.service` to `/etc/systemd/system/`:
+   ```bash
+   sudo cp device-controller.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now device-controller
+   ```
+4. Optionally edit the `.service` file to point `WorkingDirectory` and
+   `ExecStart` to your actual paths and user.
+
+The app will now start automatically on boot.
+
+---
+
+## Using as an iPhone PWA
+
+1. Open `http://<pi-ip>:5000` in **Safari** on your iPhone.
+2. Tap the **Share** button (box with arrow) → **Add to Home Screen**.
+3. Give it a name and tap **Add**.
+
+The app installs with its own icon and opens in full-screen mode, just like a
+native app.  The icon and PWA metadata are defined in `manifest.json` and the
+Apple-specific `<meta>` tags in `index.html`.
+
+---
+
+## Project Structure
+
+```
+HomelabPowerMangeger/
+├── app.py                      # Flask app — routes, WoL, SSH, Plex, logging
+├── config.json                 # Runtime config (auto-created, gitignored)
+├── device-controller.service   # Systemd unit file for the Pi
+├── manifest.json               # PWA manifest
+├── pyproject.toml              # Project metadata & deps for uv
+├── requirements.txt            # Pinned requirements (generated by uv)
+├── static/
+│   └── power-on-{128,256,512}.png   # PWA icons
+├── templates/
+│   └── index.html              # Single-page UI (tabs, dark/light theme)
+└── logs/                       # Created at runtime (gitignored)
+    ├── activity.csv            # User action log
+    └── system.log              # Rotating system/error log
 ```
