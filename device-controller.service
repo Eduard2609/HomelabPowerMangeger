@@ -1,0 +1,15 @@
+[Unit]
+Description=Homelab Power Manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eduard
+WorkingDirectory=/home/eduard/HomelabPowerMangeger
+ExecStart=/home/eduard/HomelabPowerMangeger/.venv/bin/python /home/eduard/HomelabPowerMangeger/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

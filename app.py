@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import time
 import threading
 import datetime
@@ -422,6 +422,10 @@ def index():
     log_activity('page_visit', 'success', "Main page loaded")
     return render_template('index.html')
 
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory(app.root_path, 'manifest.json')
+
 @app.route('/api/status', methods=['GET'])
 def get_status():
     # Check the actual device status
@@ -568,6 +572,25 @@ def get_logs():
 # Log application startup
 system_logger.info("Application starting up")
 log_activity('startup', 'success', "Application initialized")
+
+# ---------------------------------------------------------------------------
+# Suppress noisy 400 logs from TLS scanners hitting the plain-HTTP port.
+# Werkzeug logs these at WARNING level through the standard 'werkzeug' logger;
+# we install a filter that drops any message containing the TLS ClientHello
+# signature byte sequence so they never reach stderr.
+# ---------------------------------------------------------------------------
+class _TLSScannerFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        # TLS ClientHello always starts with \x16\x03 after the raw bytes
+        # are decoded into the log string; also catch the 'Bad request version' prefix
+        if 'Bad request version' in msg:
+            return False
+        if '\x16\x03' in msg:
+            return False
+        return True
+
+logging.getLogger('werkzeug').addFilter(_TLSScannerFilter())
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
