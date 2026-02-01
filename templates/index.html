@@ -517,8 +517,7 @@
                         }).join('');
                     })
                     .catch(() => {
-                        // On error, just hide — don't flash anything
-                        document.getElementById('plexSection').style.display = 'none';
+                        // On error, do nothing — keep whatever is currently shown
                     });
             }
 
